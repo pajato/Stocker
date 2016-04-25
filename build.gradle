@@ -16,6 +16,17 @@ allprojects {
     repositories {
         jcenter()
     }
+
+    // Setup the project build directories relative to a base build
+    // directory if one is defined in, for example, a Gradle
+    // properties file.  Note that this is a "poor man's" solution and
+    // does not preserve project hierarchies.
+    //
+    // TODO: A better solution, possibly optimal, would be to provide
+    // a Gradle plugin to handle a more complete implementation.
+    if (baseBuildDir != null) {
+        buildDir = baseBuildDir + (parent == null ? "/${project.name}/build" : "/${rootProject.name}/${project.name}/build")
+    }
 }
 
 task clean(type: Delete) {
