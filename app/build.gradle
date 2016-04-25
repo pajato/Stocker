@@ -1,27 +1,64 @@
 apply plugin: 'com.android.application'
 
 android {
-    compileSdkVersion 23
-    buildToolsVersion "23.0.3"
+    compileSdkVersion rootProject.ext.compileSdkVersion
+    buildToolsVersion rootProject.ext.buildToolsVersion
 
     defaultConfig {
         applicationId "com.pajato.android.stocker"
-        minSdkVersion 15
-        targetSdkVersion 23
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+        testInstrumentationRunner 'android.support.test.runner.AndroidJUnitRunner'
     }
+
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
+        debug {
+            // Run code coverage reports by default on debug builds.
+            testCoverageEnabled = true
+        }
+
     }
 }
 
 dependencies {
     compile fileTree(dir: 'libs', include: ['*.jar'])
-    testCompile 'junit:junit:4.12'
-    compile 'com.android.support:appcompat-v7:23.3.0'
-    compile 'com.android.support:design:23.3.0'
+    compile "com.android.support:appcompat-v7:$rootProject.ext.supportLibraryVersion"
+    compile "com.android.support:design:$rootProject.ext.supportLibraryVersion"
+
+    // Dependencies for local unit tests
+    testCompile "junit:junit:$rootProject.ext.junitVersion"
+
+    // Android Testing Support Library's runner and rules
+    androidTestCompile "com.android.support.test:runner:$rootProject.ext.runnerVersion"
+    androidTestCompile "com.android.support.test:rules:$rootProject.ext.runnerVersion"
+
+    // Espresso UI Testing dependencies.
+    androidTestCompile "com.android.support.test.espresso:espresso-core:$rootProject.ext.espressoVersion"
+}
+
+// Resolves dependency versions across test and production APKs,
+// specifically, transitive dependencies. This is required since
+// Espresso internally has a dependency on support-annotations.
+configurations.all {
+    resolutionStrategy.force "com.android.support:support-annotations:$rootProject.supportLibraryVersion"
+}
+
+// All direct/transitive dependencies shared between your test and
+// production APKs need to be excluded from the test APK! This is
+// necessary because both APKs will contain the same classes. Not
+// excluding these dependencies from your test configuration will
+// result in an dex pre-verifier error at runtime. More info in this
+// tools bug:
+// (https://code.google.com/p/android/issues/detail?id=192497)
+configurations.compile.dependencies.each { compileDependency ->
+    println "Excluding compile dependency: ${compileDependency.getName()}"
+    configurations.androidTestCompile.dependencies.each { androidTestCompileDependency ->
+        configurations.androidTestCompile.exclude module: "${compileDependency.getName()}"
+    }
 }
