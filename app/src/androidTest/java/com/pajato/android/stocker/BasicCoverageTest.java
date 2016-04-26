@@ -16,7 +16,6 @@ import static android.support.test.espresso.assertion.ViewAssertions.matches;
 import static android.support.test.espresso.matcher.ViewMatchers.isDisplayed;
 import static android.support.test.espresso.matcher.ViewMatchers.withId;
 import static android.support.test.espresso.matcher.ViewMatchers.withText;
-import static org.hamcrest.Matchers.allOf;
 
 /**
  * Provide a set of tests that augment the do nothing tests to get the percent of covered code over the 80% bar.
@@ -34,7 +33,7 @@ public class BasicCoverageTest {
         // Ensure that the FAB button is visible and click on it, verifying that a snackbar message is displayed and
         // removing the snackbar message.
         onView(withId(R.id.fab)).perform(click());
-        onView(allOf(withId(android.support.design.R.id.snackbar_text), withText("Replace with your own action")))
+        onView(withId(android.support.design.R.id.snackbar_text))
             .check(matches(isDisplayed()))
             .perform(swipeRight());
     }
