@@ -33,7 +33,7 @@ public class BasicCoverageTest {
         // Ensure that the FAB button is visible and click on it, verifying that a snackbar message is displayed and
         // removing the snackbar message.
         onView(withId(R.id.fab)).perform(click());
-        onView(withId(android.support.design.R.id.snackbar_text))
+        onView(withText("Symbol Search"))
             .check(matches(isDisplayed()))
             .perform(swipeRight());
     }
