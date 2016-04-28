@@ -27,11 +27,21 @@ android {
     }
 }
 
+// Obtain the material dialogs library from jitpack.
+repositories {
+    maven { url "https://jitpack.io" }
+}
+
 dependencies {
     compile fileTree(dir: 'libs', include: ['*.jar'])
     compile "com.android.support:appcompat-v7:$rootProject.ext.supportLibraryVersion"
     compile "com.android.support:design:$rootProject.ext.supportLibraryVersion"
     compile "com.android.support:recyclerview-v7:$rootProject.ext.supportLibraryVersion"
+    compile "org.greenrobot:eventbus:$rootProject.ext.eventBusVersion"
+    compile('com.github.afollestad.material-dialogs:core:0.8.5.7@aar') {
+        transitive = true
+    }
+    compile "com.yahoofinance-api:YahooFinanceAPI:$rootProject.ext.yahooFinanceVersion"
 
     // Use Project Lombok at https://projectlombok.org to
     // significantly reduce boilerplate code.
