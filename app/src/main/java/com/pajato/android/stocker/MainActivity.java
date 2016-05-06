@@ -12,16 +12,15 @@ import android.text.TextUtils;
 import android.view.Menu;
 import android.view.MenuItem;
 
+import com.pajato.android.stocker.event.EventBus;
 import com.pajato.android.stocker.event.MessageEvent;
 import com.pajato.android.stocker.event.MessageEvent.Type;
 import com.pajato.android.stocker.stockadd.InputCallbackHandler;
 import com.pajato.android.stocker.stockadd.NewSymbolHandler;
 import com.pajato.android.stocker.stocklist.StockListManager;
 
-import org.greenrobot.eventbus.EventBus;
-import org.greenrobot.eventbus.Subscribe;
-
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -30,13 +29,18 @@ import java.util.List;
  *
  * @author Paul Michael Reilly
  */
-public class MainActivity extends AppCompatActivity {
+public final class MainActivity extends AppCompatActivity implements EventBus.Subscriber {
 
     @Override protected void onCreate(Bundle savedInstanceState) {
+        // Create the default UI.
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         setSupportActionBar((Toolbar) findViewById(R.id.toolbar));
-        initializeAddSymbolButton();
+
+        // Initialize the event bus and the app features.
+        EventBus.instance.reset();
+        EventBus.instance.register(this);
+        initializeStockAdd();
         initializeStockList();
     }
 
@@ -44,29 +48,6 @@ public class MainActivity extends AppCompatActivity {
         // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.menu_main, menu);
         return true;
-    }
-
-    /** Register the components which will be using the event bus. */
-    @Override public void onStart() {
-        super.onStart();
-        // Due to a bug or questionable behavior from Greenrobot, ensure that the given classes are not already
-        // registered before attempting to register them.  The failure to do this breaks the device tests.
-        Object[] components = getComponents();
-        for (Object component : components) {
-            if (!EventBus.getDefault().isRegistered(component)) {
-                // All clear, register the class to get posted events.
-                EventBus.getDefault().register(component);
-            }
-        }
-
-        // Setup to view a few stocks.
-        addInitialStocks();
-    }
-
-    /** Unregister the components that have been using the event bus. */
-    @Override public void onStop() {
-        EventBus.getDefault().unregister(InputCallbackHandler.instance);
-        super.onStop();
     }
 
     /** Place holder for handling Learn More, Help and Settings menu operations. */
@@ -81,61 +62,46 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /** Provide a handler for displaying status and error messages posted to the event bus. */
-    @Subscribe public void onMessageEvent(final MessageEvent event) {
+    @Override public void onPost(final MessageEvent event) {
         // Handle status and error events by hanging a snackbar message off the FAB button.
-        FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
-        String message = "some default";
+        String message = null;
+        List<String> payload = event.getPayload();
         switch (event.getType()) {
 
-        case STATUS:
-        case IO_ERROR:
+        case REPORT_DUPLICATE_SYMBOLS:
+            // Display a snackbar message showing the duplicate symbols.
+            message = getMessage(R.string.format_duplicate_symbol, payload);
+            break;
+
+        case REPORT_STATUS:
+        case REPORT_IO_ERROR:
             // Display the status/error message supplied in the one and only argument entry.
             message = event.getPayload().get(0);
             break;
 
-        case SYMBOL_ERROR:
+        case REPORT_SYMBOL_ERROR:
             // Show the symbols for which Yahoo has no information.
-            String format = getResources().getString(R.string.invalid_symbol_format);
-            String plural = event.getPayload().size() > 0 ? "s" : "";
-            String list = TextUtils.join(",", event.getPayload());
-            message = String.format(format, plural, list);
+            message = getMessage(R.string.format_invalid_symbol, payload);
             break;
 
         default:
             // Ignore other event types.
             break;
         }
-        Snackbar.make(fab, message, Snackbar.LENGTH_LONG).setAction("Action", null).show();
+
+        // Process a message, if one exists, by displaying it in a snackbar.
+        if (message != null) {
+            FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
+            Snackbar.make(fab, message, Snackbar.LENGTH_LONG).setAction("Action", null).show();
+        }
+    }
+
+    /** Provide the default event bus implementation in support of testing. */
+    public EventBus getEventBus() {
+        return EventBus.instance;
     }
 
     // Private instance methods.
-
-    /** Use a procedural abstraction to collect the components using the event bus. */
-    private Object[] getComponents() {
-        return new Object[] {
-            this,
-            InputCallbackHandler.instance,
-            StockListManager.instance.getAdapter()
-        };
-    }
-
-    /** Initialize the add symbol button using a Material Design floating action button. */
-    private void initializeAddSymbolButton() {
-        // Obtain the FAB and set the button handler to invoke the symbol search dialog.  Also ensure that the dialog
-        // input callback handler is registered with the event bus to track stock symbols as they are added and removed.
-        FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
-        fab.setOnClickListener(NewSymbolHandler.instance);
-    }
-
-    /** Initialize the stock list diplay with some high tech stocks. */
-    private void initializeStockList() {
-        // Set up the recycler view to hold the sample stock data.
-        final RecyclerView recyclerView = (RecyclerView) findViewById(R.id.recycler_view);
-        RecyclerView.LayoutManager layoutManager = new LinearLayoutManager(getApplicationContext());
-        recyclerView.setLayoutManager(layoutManager);
-        recyclerView.setItemAnimator(new DefaultItemAnimator());
-        recyclerView.setAdapter(StockListManager.instance.getAdapter());
-    }
 
     /** Set up to view some initial stocks. */
     private void addInitialStocks() {
@@ -145,7 +111,39 @@ public class MainActivity extends AppCompatActivity {
         payload.add("GOOG");
         payload.add("MSFT");
         payload.add("YHOO");
-        EventBus.getDefault().post(new MessageEvent(Type.ADD, payload));
+        EventBus.instance.post(new MessageEvent(Type.ADD_SYMBOLS, payload));
+    }
+
+    /** Obtain a message string to display in a snackbar. */
+    private String getMessage(final int baseId, final List<String> payload) {
+        // Plug the payload into a message format string as a sorted list and return the result.
+        String format = getResources().getString(baseId);
+        String plural = payload.size() > 1 ? "s" : "";
+        Collections.sort(payload);
+        String list = TextUtils.join(", ", payload);
+        return String.format(format, plural, list);
+    }
+
+    /** Initialize the stock add feature. */
+    private void initializeStockAdd() {
+        // Register the event bus subscribers, obtain the FAB and set the button handler to invoke the symbol search
+        // dialog.
+        EventBus.instance.register(InputCallbackHandler.instance);
+        FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
+        fab.setOnClickListener(NewSymbolHandler.instance);
+    }
+
+    /** Initialize the stock list feature. */
+    private void initializeStockList() {
+        // Register the event bus subscribers, set up the recycler view to hold the sample stock data and add some
+        // initial stocks.
+        EventBus.instance.register(StockListManager.instance.getAdapter());
+        final RecyclerView recyclerView = (RecyclerView) findViewById(R.id.recycler_view);
+        RecyclerView.LayoutManager layoutManager = new LinearLayoutManager(getApplicationContext());
+        recyclerView.setLayoutManager(layoutManager);
+        recyclerView.setItemAnimator(new DefaultItemAnimator());
+        recyclerView.setAdapter(StockListManager.instance.getAdapter());
+        addInitialStocks();
     }
 
 }

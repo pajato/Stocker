@@ -37,7 +37,6 @@ dependencies {
     compile "com.android.support:appcompat-v7:$rootProject.ext.supportLibraryVersion"
     compile "com.android.support:design:$rootProject.ext.supportLibraryVersion"
     compile "com.android.support:recyclerview-v7:$rootProject.ext.supportLibraryVersion"
-    compile "org.greenrobot:eventbus:$rootProject.ext.eventBusVersion"
     compile('com.github.afollestad.material-dialogs:core:0.8.5.7@aar') {
         transitive = true
     }

@@ -21,6 +21,7 @@ public class StockModelUnitTest {
     /** The rule used to launch the activity under test. */
     @Rule public ActivityTestRule<MainActivity> activityRule = new ActivityTestRule<>(MainActivity.class);
 
+    /** Test Lombok generated code to drive up code coverage. */
     @Test public void unitTest() {
         StockModel a = new StockModel("GOOG", 721.22, 0.3);
         StockModel b = new StockModel("GOOG", 721.22, 0.3);
@@ -32,7 +33,6 @@ public class StockModelUnitTest {
         int ha = a.hashCode();
         int hb = b.hashCode();
         int hc = c.hashCode();
-        int hd = d.hashCode();
         Assert.assertTrue("Test that the hash code for the same object is equal.", ha == a.hashCode());
         Assert.assertTrue("Test that the hash code for two different (but equal) objects are the same.", ha == hb);
         Assert.assertFalse("Test that the hash code for two different (but not equal) objects are different.", ha == hc);

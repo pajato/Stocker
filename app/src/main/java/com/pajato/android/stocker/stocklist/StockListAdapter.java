@@ -9,11 +9,11 @@ import android.view.ViewGroup;
 import android.widget.TextView;
 
 import com.pajato.android.stocker.R;
+import com.pajato.android.stocker.event.EventBus;
 import com.pajato.android.stocker.event.MessageEvent;
 import com.pajato.android.stocker.event.MessageEvent.Type;
-
-import org.greenrobot.eventbus.EventBus;
-import org.greenrobot.eventbus.Subscribe;
+import yahoofinance.Stock;
+import yahoofinance.YahooFinance;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -21,15 +21,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import yahoofinance.Stock;
-import yahoofinance.YahooFinance;
-
 /**
  * Provide a basic adapter class for the stock list activity.
  *
  * @author Paul Michael Reilly
  */
-public class StockListAdapter extends RecyclerView.Adapter<StockListAdapter.StockListViewHolder> {
+public class StockListAdapter extends RecyclerView.Adapter<StockListAdapter.StockListViewHolder>
+    implements EventBus.Subscriber {
 
     // Private class constants.
 
@@ -68,25 +66,47 @@ public class StockListAdapter extends RecyclerView.Adapter<StockListAdapter.Stoc
         return mStockList.size();
     }
 
-    /** Handle one or more new stock entries. */
-    @Subscribe public void onMessageEvent(final MessageEvent event) {
-        if (event.getType() != Type.ADD) {
-            // Ignore all other events.
-            return;
-        }
-
-        // Create a place holder for each entry in the event and notify the adapter that the data set has changed,
-        // albeit with no data yet.
+    /** Implement the subscriber interface to Handle one or more new stock entries. */
+    @Override public void onPost(final MessageEvent event) {
+        // Case on the event action type to process symbol addition and removal.
         List<String> list = event.getPayload();
-        for (String symbol : list) {
-            // Create a default stock entry as a placeholder until the actual finance data is returned from Yahoo.
-            mStockList.add(new StockModel(symbol, 0.0, 0.0));
-        }
-        notifyDataSetChanged();
+        List<String> updateList = new ArrayList<>();
+        switch (event.getType()) {
+        case ADD_SYMBOLS:
+            // Create a place holder for each entry in the event and notify the adapter that the data set has changed,
+            // albeit with no data yet.
+            for (String symbol : list) {
+                // Filter out symbols already in the model to create new entries as a placeholder (with empty data)
+                // until the next update arrives from Yahoo.
+                if (findStockBySymbol(symbol) == null) {
+                    updateList.add(symbol);
+                    mStockList.add(new StockModel(symbol, 0.0, 0.0));
+                }
+            }
 
-        // Kick off a background task to get the initial stock data (bid price, change from the last price).
-        GetStockQuoteTask task = new GetStockQuoteTask();
-        task.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, list.toArray(new String[0]));
+            // If there has been new entries added, force an update to the recycler view and fetch real data using a
+            // background task..
+            if (updateList.size() > 0) {
+                notifyDataSetChanged();
+                GetStockQuoteTask task = new GetStockQuoteTask();
+                task.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, updateList.toArray(new String[0]));
+            }
+            break;
+
+        case REMOVE_SYMBOLS:
+            // Quietly remove the given symbols and update the data model.
+            boolean update = false;
+            for (String symbol : list) {
+                StockModel model = findStockBySymbol(symbol);
+                update = mStockList.remove(model);
+            }
+            if (update) notifyDataSetChanged();
+            break;
+
+        default:
+            // Ignore all other actions as they are handled elsewhere.
+            break;
+        }
     }
 
     // Private classes
@@ -94,65 +114,58 @@ public class StockListAdapter extends RecyclerView.Adapter<StockListAdapter.Stoc
     /** The async task used to get stock quote data. */
     private class GetStockQuoteTask extends AsyncTask<String, Object, Map<String, Stock>> {
 
-        /** Process the background task results in the foreground. */
-        @Override protected void onPreExecute() {
-            // Indicate that we are going to talk to Yahoo...
-            String message = "Starting stock data fetch...";
-            List<String> messageList = new ArrayList<>();
-            messageList.add(message);
-            MessageEvent event = new MessageEvent(Type.STATUS, messageList);
-            EventBus.getDefault().post(event);
-        }
+        /** The saved error message event; non-null when errors have occurred. */
+        MessageEvent mErrorEvent = null;
 
         @Override protected Map<String, Stock> doInBackground(String... symbols) {
             Map<String, Stock> result = new HashMap<>();
 
             // Obtain the list of stocks in bulk.
             try {
+                // Obtain the result and determine if any invalid symbols were detected.
                 result = YahooFinance.get(symbols);
+                List<String> invalidSymbolList = new ArrayList<>();
+                for (String symbol : symbols) {
+                    // Collect symbols for which no data has been returned per the YahooFinance API documentation and
+                    // for which the returned stock name is null.  The latter are also pruned from the return value.
+                    Stock stock = result.get(symbol);
+                    if (stock == null || stock.getName() == null) invalidSymbolList.add(symbol);
+                    if (stock != null && stock.getName() == null) result.remove(symbol);
+                }
+                if (invalidSymbolList.size() > 0) {
+                    mErrorEvent = new MessageEvent(Type.REPORT_SYMBOL_ERROR, invalidSymbolList);
+                }
             } catch (IOException exc) {
                 // Report on io issues by posting an appropriate event.
                 List<String> messageList = new ArrayList<>();
                 messageList.add(exc.getMessage());
-                MessageEvent event = new MessageEvent(Type.IO_ERROR, messageList);
-                EventBus.getDefault().post(event);
+                mErrorEvent = new MessageEvent(Type.REPORT_IO_ERROR, messageList);
             }
 
             return result;
         }
 
-        /** Process the background task results in the foreground. */
+        /** Process the background task result in the foreground. */
         @Override protected void onPostExecute(final Map<String, Stock> result) {
-            // Walk the list of results to update the adapter model and notify it of the changes.  Collect any invalid
-            // stock symbols for subsequent processing.
-            List<String> badStockList = new ArrayList<>();
+            // Post any errors that might have occurred occurred while fetching stock data and walk the list of results
+            // to update the adapter model and notify it of the changes.
+            if (mErrorEvent != null) EventBus.instance.post(mErrorEvent);
+            boolean hasUpdates = false;
             for (String symbol : result.keySet()) {
                 Stock stock = result.get(symbol);
                 StockModel model = findStockBySymbol(symbol);
                 if (model != null) {
-                    // There is, as expected, a model for this stock symbol.  Detect an invalid stock using the price.
-                     if (stock.getQuote().getPrice() == null) {
-                        // Deal with an invalid stock symbol by collecting the symbols and popping up a snackbar after
-                        // all the other stocks have been processed.
-                        badStockList.add(symbol);
-                    } else {
-                         // Populate the model entry.
-                         model.setPrice(stock.getQuote().getPrice().doubleValue());
-                         model.setDelta(stock.getQuote().getChange().doubleValue());
-                    }
+                    // Populate the model entry.
+                    model.setPrice(stock.getQuote().getPrice().doubleValue());
+                    model.setDelta(stock.getQuote().getChange().doubleValue());
+                    hasUpdates = true;
                 } else {
-                    // Log but otherwise ignore stocks which have disappeared from the adapter model.
+                    // Log but otherwise ignore stocks which have disappeared from the adapter model.  They have
+                    // probably been removed.
                     Log.w(TAG, String.format("Missing stock {%s}, presumed swiped away.", symbol));
                 }
             }
-            notifyDataSetChanged();
-
-            // Process invalid stock symbols, if any, by posting a message to have the activity report on invalid
-            // stocks.
-            if (badStockList.size() > 0) {
-                MessageEvent event = new MessageEvent(Type.SYMBOL_ERROR, badStockList);
-                EventBus.getDefault().post(event);
-            }
+            if (hasUpdates) notifyDataSetChanged();
         }
     }
 

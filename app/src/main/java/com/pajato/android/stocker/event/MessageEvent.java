@@ -1,22 +1,28 @@
 package com.pajato.android.stocker.event;
 
-import java.util.List;
-
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
+import java.util.List;
+
 /**
- * Provide a event object class for disseminating actions and arguments.display information about stocks, such as the symbol, current price and the change from the
- * previous price.
+ * Provide a event object class for disseminating actions and arguments to display information about stocks, such as the
+ * symbol, current price and the change from the previous price.
  *
  * @author Paul Michael Reilly
  */
 @Data
 @AllArgsConstructor(suppressConstructorProperties = true)
-public class MessageEvent {
+public final class MessageEvent {
 
+    /** Provide a set of action types. */
     public enum Type {
-        ADD, REMOVE, STATUS, IO_ERROR, SYMBOL_ERROR;
+        ADD_SYMBOLS,
+        REMOVE_SYMBOLS,
+        REPORT_DUPLICATE_SYMBOLS,
+        REPORT_IO_ERROR,
+        REPORT_STATUS,
+        REPORT_SYMBOL_ERROR;
     }
 
     // Private constants.
