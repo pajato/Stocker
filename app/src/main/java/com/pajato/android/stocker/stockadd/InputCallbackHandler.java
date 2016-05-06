@@ -5,21 +5,21 @@ import android.util.Log;
 import android.view.View;
 
 import com.afollestad.materialdialogs.MaterialDialog;
+import com.pajato.android.stocker.event.EventBus;
 import com.pajato.android.stocker.event.MessageEvent;
 import com.pajato.android.stocker.event.MessageEvent.Type;
 
-import org.greenrobot.eventbus.EventBus;
-import org.greenrobot.eventbus.Subscribe;
-
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Provide a singleton handler to process a result obtained from the new symbol dialog.  Subscribes to the event bus.
  *
  * @author Paul Michael Reilly
  */
-public enum InputCallbackHandler implements MaterialDialog.InputCallback {
+public enum InputCallbackHandler implements MaterialDialog.InputCallback, EventBus.Subscriber {
     // The singleton and sole enumeration value.
     instance;
 
@@ -38,30 +38,54 @@ public enum InputCallbackHandler implements MaterialDialog.InputCallback {
 
     /** Process the new symbol by ensuring it does not already exist. */
     @Override public void onInput(MaterialDialog dialog, CharSequence input) {
-        // Determine if the new symbol is really a new symbol.
-        if (mSymbolList.contains(input.toString())) {
-            // Invoke a snackbar to the event the input is already registered.
-            Snackbar.make(mView, "The symbol is already registered.", Snackbar.LENGTH_LONG)
-                .setAction("Action", null).show();
-        } else {
-            // Post the new symbol.
+        // Parse out the separators (commas, colons, tab or space characters);
+        String regex = "[ ,:]+";
+        String repl = ":";
+        String parsedString = input.toString().replaceAll(regex, repl);
+        String[] symbols = parsedString.split(repl);
+
+        // Collect the unique symbols that are not already in the displayed stock list.
+        Set<String> uniqueSymbols = new HashSet<>();
+        Set<String> duplicates = new HashSet<>();
+        for (String symbol : symbols) {
+            // Ensure that this symbol is not already in the stock list.
+            if (mSymbolList.contains(symbol)) {
+                // Collect the duplicates to be posted as a status message.
+                duplicates.add(symbol);
+            } else {
+                // Collect the new symbols.
+                uniqueSymbols.add(symbol);
+            }
+        }
+
+        // Process the new stock symbols, if any.
+        if (uniqueSymbols.size() > 0) {
+            // There are symbols to be processed.  Post them.
             List<String> payload = new ArrayList<>();
-            payload.add(input.toString());
-            EventBus.getDefault().post(new MessageEvent(Type.ADD, payload));
+            payload.addAll(uniqueSymbols);
+            EventBus.instance.post(new MessageEvent(Type.ADD_SYMBOLS, payload));
+        }
+
+        // Finally, process the duplicates, if any.
+        if (duplicates.size() > 0) {
+            // There are duplicates.  Post a warning via status.
+            List<String> payload = new ArrayList<>();
+            payload.addAll(duplicates);
+            EventBus.instance.post(new MessageEvent(Type.REPORT_DUPLICATE_SYMBOLS, payload));
         }
     }
 
-    /** Capture stock symbols to be added and removed via the event bus. */
-    @Subscribe public void onMessageEvent(final MessageEvent event) {
+    /** Implement the Subscriber interface to capture stock symbols to be added and removed via the event bus. */
+    @Override public void onPost(final MessageEvent event) {
         // Add the entire collection of symbols in the event payload.
         try {
             switch (event.getType()) {
-            case ADD:
+            case ADD_SYMBOLS:
                 // Add zero or more stock symbols in order to detect subsequent attempt to create duplicate symbols.
                 mSymbolList.addAll(event.getPayload());
                 break;
 
-            case REMOVE:
+            case REMOVE_SYMBOLS:
                 // Remove zero or more stock symbols.
                 mSymbolList.removeAll(event.getPayload());
                 break;

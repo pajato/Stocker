@@ -26,10 +26,10 @@ public enum NewSymbolHandler implements View.OnClickListener {
         // Create the dialog for specifying the new stock symbol and present it to the User.
         InputCallbackHandler.instance.setView(view);
         new MaterialDialog.Builder(view.getContext())
-            .title(R.string.symbol_search)
-            .content(R.string.content_test)
+            .title(R.string.symbol_search_title)
+            .content(R.string.symbol_search_text)
             .inputType(InputType.TYPE_CLASS_TEXT)
-            .input(R.string.input_hint, R.string.input_prefill, InputCallbackHandler.instance)
+            .input(R.string.symbol_search_hint, R.string.symbol_search_prefill, InputCallbackHandler.instance)
             .show();
     }
 }

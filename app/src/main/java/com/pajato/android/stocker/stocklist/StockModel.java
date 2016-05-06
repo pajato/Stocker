@@ -11,7 +11,7 @@ import lombok.Data;
  */
 @Data
 @AllArgsConstructor(suppressConstructorProperties = true)
-public class StockModel {
+public final class StockModel {
 
     // Private constants.
 

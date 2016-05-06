@@ -1,13 +1,15 @@
 <resources xmlns:xliff="http://schemas.android.com/apk/res-auto">
-    <string name="app_name">Stocker</string>
-    <string name="action_settings">Settings</string>
+    <!-- General strings -->
     <string name="action_change_units">Change Units</string>
-    <string name="symbol_search">Symbol Search</string>
-    <string name="content_test">Search for a Stock Symbol</string>
-    <string name="input_hint">FB</string>
-    <string name="input_prefill"></string>
+    <string name="action_settings">Settings</string>
+    <string name="app_name">Stocker</string>
+    <string name="format_duplicate_symbol">Duplicate symbol%1$s: %2$s</string>
+    <string name="format_invalid_symbol">Invalid symbol%1$s: %2$s</string>
     <string name="network_toast">Uh-oh! This app requires an internet connection</string>
-    <string name="invalid_symbol_format">Invalid symbol%1$s: %2$s</string>
+    <string name="symbol_search_hint">IBM</string>
+    <string name="symbol_search_prefill"></string>
+    <string name="symbol_search_text">Enter one or more stock symbols</string>
+    <string name="symbol_search_title">Symbol Search</string>
 
     <!-- A11y -->
     <string name="a11y_fab">Add stock symbol floating action</string>
